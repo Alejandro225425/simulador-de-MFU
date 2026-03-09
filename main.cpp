@@ -238,13 +238,28 @@ int main() {
                         int hitsDespues = mmu.getPageTable().getHitCount();
                         
                         if (hitsDespues > hitsAntes) {
+                            // Determinar si fue TLB Hit o Page Table Hit
+                            // (el TLB hit sube hitCount igual que page table hit, 
+                            //  pero lo distinguimos por si el frame YA estaba en TLB)
                             if (numAccesos <= 100) {
-                                cout << "  [PAGE HIT] Acceso a pagina " << randomPage << endl;
+                                cout << "  [TLB/RAM HIT] Pagina " << randomPage
+                                     << " encontrada en memoria (sin page fault)." << endl;
+                                cout << "    Detalle MFU: frecuencia de la pagina sube a "
+                                     << mmu.getPageTable().getPageEntry(randomPage).accessCount
+                                     << " (mas protegida del reemplazo)" << endl;
                             }
                         } else if (fallosDespues > fallosAntes) {
                             reemplazosCount++;
                             if (numAccesos <= 100) {
-                                cout << "  [PAGE FAULT] Acceso a pagina " << randomPage << endl;
+                                cout << "  [PAGE FAULT ] Pagina " << randomPage
+                                     << " NO estaba en RAM -> se produjo reemplazo MFU." << endl;
+                                cout << "    Detalle: ver cuadro [MFU] impreso arriba ^" << endl;
+                            }
+                        } else {
+                            // Primera carga (marco libre disponible, no hay reemplazo)
+                            if (numAccesos <= 100) {
+                                cout << "  [CARGA INIT ] Pagina " << randomPage
+                                     << " asignada a marco libre (RAM no estaba llena)." << endl;
                             }
                         }
                         
@@ -267,16 +282,39 @@ int main() {
                         }
                     }
                     
-                    cout << "\n\n+===== RESULTADOS FINALES DE SIMULACION =====" << endl;
-                    cout << "| Accesos a memoria solicitados: " << numAccesos << endl;
-                    cout << "| Aciertos en memoria (Page Hits): " << mmu.getPageTable().getHitCount() << endl;
-                    cout << "| Fallos de pagina (Page Faults): " << mmu.getTotalPageFaults() << endl;
-                    cout << "| Total de reemplazos de pagina (Swaps): " << reemplazosCount << endl;
-                    cout << "| Tasa de aciertos (Hit Rate): " << fixed << setprecision(2) 
-                         << ((double)mmu.getPageTable().getHitCount() / numAccesos * 100.0) << "%" << endl;
-                    cout << "| Tasa de fallos (Miss Rate): " << fixed << setprecision(2) 
-                         << (mmu.getPageFaultRate() * 100.0) << "%" << endl;
-                    cout << "+============================================" << endl;
+                    int totalHits   = mmu.getPageTable().getHitCount();
+                    int totalFaults  = mmu.getTotalPageFaults();
+                    double hitRate   = (double)totalHits  / numAccesos * 100.0;
+                    double missRate  = mmu.getPageFaultRate() * 100.0;
+
+                    cout << "\n\n╔══════════════════════════════════════════════════════════════╗" << endl;
+                    cout << "║          RESUMEN DE METRICAS - SIMULACION MFU                ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Accesos solicitados  : " << setw(5) << numAccesos
+                         << "  (total de referencias a paginas)  ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Page Hits            : " << setw(5) << totalHits  << endl;
+                    cout << "║   >> La pagina estaba en RAM (TLB o Tabla). No hubo          ║" << endl;
+                    cout << "║      intervencion del MFU. Acceso rapido.                   ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Page Faults          : " << setw(5) << totalFaults << endl;
+                    cout << "║   >> La pagina NO estaba en RAM. El MFU busco la de menor   ║" << endl;
+                    cout << "║      frecuencia y la expulso (Swap Out) para hacer lugar.   ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Swaps (reemplazos)   : " << setw(5) << reemplazosCount << endl;
+                    cout << "║   >> Veces que MFU eligio y expulso una pagina de la RAM.   ║" << endl;
+                    cout << "║      Cada swap = 1 decision MFU ejecutada.                  ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Hit Rate (aciertos)  : " << fixed << setprecision(2)
+                         << setw(6) << hitRate  << "%" << endl;
+                    cout << "║   >> Cuantos accesos se resolvieron SIN molestar al MFU.    ║" << endl;
+                    cout << "║      Valor alto = algoritmo eficiente, pocas expulsiones.   ║" << endl;
+                    cout << "╠══════════════════════════════════════════════════════════════╣" << endl;
+                    cout << "║ Miss Rate (fallos)   : " << fixed << setprecision(2)
+                         << setw(6) << missRate << "%" << endl;
+                    cout << "║   >> Cuantos accesos forzaron una decision MFU de reemplazo.║" << endl;
+                    cout << "║      Valor bajo = buena localidad de referencia del proceso. ║" << endl;
+                    cout << "╚══════════════════════════════════════════════════════════════╝" << endl;
                 } else {
                     cout << "\n[ERROR] Numero de accesos invalido." << endl;
                 }

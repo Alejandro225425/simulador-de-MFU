@@ -64,11 +64,14 @@ void MFUAlgorithm::recordPageAccess(int pageNumber) {
 
 void MFUAlgorithm::displayPagesByFrequency() {
     std::cout << "\n╔══════════════════════════════════════════════════════════════════════════════════════╗" << std::endl;
-    std::cout << "║           PAGINA ORDENADAS POR FRECUENCIA DE ACCESO (ALGORITMO MFU)                 ║" << std::endl;
+    std::cout << "║         ESTADO DE RAM - PAGINAS POR FRECUENCIA (ALGORITMO MFU)                     ║" << std::endl;
     std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════╣" << std::endl;
-    
+    std::cout << "║ Como funciona MFU: cuando la RAM se llena y llega una pagina nueva, se expulsa      ║" << std::endl;
+    std::cout << "║ la pagina con MENOR frecuencia de acceso (es la menos usada = mas prescindible).    ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════╣" << std::endl;
+
     std::vector<std::pair<int, int>> pageFrequency;  // (pageNumber, accessCount)
-    
+
     for (int frame = 0; frame < pageTable->getTotalFrames(); frame++) {
         int pageNum = pageTable->getPageInFrame(frame);
         if (pageNum != -1) {
@@ -76,37 +79,66 @@ void MFUAlgorithm::displayPagesByFrequency() {
             pageFrequency.push_back({pageNum, page.accessCount});
         }
     }
-    
-    // Ordenar de mayor a menor frecuencia
+
+    // Ordenar de mayor a menor frecuencia (MFU: la ultima = victima potencial)
     std::sort(pageFrequency.begin(), pageFrequency.end(),
-        [](const std::pair<int, int>& a, const std::pair<int, int>& b) { 
-            return a.second > b.second; 
+        [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+            return a.second > b.second;
         });
-    
-    std::cout << "║ P.Virt │ Frame │ Frecuencia │ Presencia │ Dirty Bit  │ Ref. Bit   │ Posicion │" << std::endl;
-    std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════╣" << std::endl;
-    
+
+    std::cout << "║                                                                                      ║" << std::endl;
+    std::cout << "║  Pos  │ P.Virtual │ Marco │ Frecuencia │ Dirty │ Ref. │ Rol en MFU                  ║" << std::endl;
+    std::cout << "║ ──────┼───────────┼───────┼────────────┼───────┼──────┼───────────────────────────  ║" << std::endl;
+
     if (pageFrequency.empty()) {
-        std::cout << "║ [NO HAY PAGINAS EN MEMORIA PRINCIPAL]" << std::setw(51) << "║" << std::endl;
+        std::cout << "║  [SIN DATOS] Ejecuta primero la simulacion (opcion 1)                            ║" << std::endl;
     } else {
         for (size_t i = 0; i < pageFrequency.size(); i++) {
-            int pageNum = pageFrequency[i].first;
+            int pageNum   = pageFrequency[i].first;
             int frequency = pageFrequency[i].second;
             const MemoryPage& page = pageTable->getPageEntry(pageNum);
-            
-            std::cout << "║ " << std::setw(6) << pageNum << " │ "
-                      << std::setw(5) << page.frameNumber << " │ "
-                      << std::setw(10) << frequency << " │ "
-                      << std::setw(9) << (page.presentBit ? "SI" : "NO") << " │ "
-                      << std::setw(10) << (page.dirtyBit ? "SI" : "NO") << " │ "
-                      << std::setw(10) << (page.referenceBit ? "SI" : "NO") << " │ "
-                      << std::setw(8) << (i + 1) << " │" << std::endl;
+
+            // Rol explicativo segun posicion en el ranking
+            std::string rol;
+            if (pageFrequency.size() == 1) {
+                rol = "<-- UNICA (victima si hay fallo)";
+            } else if (i == 0) {
+                rol = "   MAS USADA - protegida";
+            } else if (i == pageFrequency.size() - 1) {
+                rol = "<== VICTIMA MFU (menos usada)";
+            } else {
+                rol = "   intermedia";
+            }
+
+            std::cout << "║  " << std::setw(4) << (i + 1)
+                      << " │ " << std::setw(9) << pageNum
+                      << " │ " << std::setw(5)  << page.frameNumber
+                      << " │ " << std::setw(10) << frequency
+                      << " │ " << std::setw(5)  << (page.dirtyBit     ? "SI" : "NO")
+                      << " │ " << std::setw(4)  << (page.referenceBit ? "SI" : "NO")
+                      << " │ " << std::left << std::setw(29) << rol << std::right << " ║" << std::endl;
         }
     }
-    
+
     std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════╣" << std::endl;
-    std::cout << "║ Nota: Las paginas con MAYOR frecuencia se mantienen en RAM (Page Hit)               ║" << std::endl;
-    std::cout << "║       Las paginas con MENOR frecuencia seran elegidas para Swap Out (MFU Reemplazo) ║" << std::endl;
+
+    // Mostrar proxima victima
+    if (!pageFrequency.empty()) {
+        int victima    = pageFrequency.back().first;
+        int freqVict   = pageFrequency.back().second;
+        int frameVict  = pageTable->getPageEntry(victima).frameNumber;
+        std::cout << "║ PROXIMA VICTIMA si entra una pagina nueva:                                           ║" << std::endl;
+        std::cout << "║   Pagina " << std::setw(6) << victima
+                  << " (Marco " << frameVict << ", frecuencia=" << freqVict
+                  << ") sera expulsada." << std::setw(20) << " ║" << std::endl;
+        std::cout << "║   Razon: menor frecuencia = menos necesaria para mantener en RAM.                    ║" << std::endl;
+    }
+
+    std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ LEYENDA DE COLUMNAS:                                                                 ║" << std::endl;
+    std::cout << "║  Frecuencia : num. de veces que la pagina fue accedida (criterio de decision MFU)   ║" << std::endl;
+    std::cout << "║  Dirty      : SI = pagina modificada (necesita escribirse a disco antes de salir)   ║" << std::endl;
+    std::cout << "║  Ref.       : SI = fue accedida recientemente (Reference Bit activo)                ║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════════════════════════════════╝" << std::endl;
 }
 

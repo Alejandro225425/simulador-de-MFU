@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <climits>
 
 MMU::MMU(int numPages, int numFrames, int pageSize)
     : pageTable(numPages, numFrames), tlb(16),
@@ -58,30 +59,60 @@ bool MMU::accessPage(int pageNumber, bool write) {
         // Hay marco disponible
         pageTable.assignFrame(pageNumber, availableFrame);
     } else {
-        // NO HAY MARCOS DISPONIBLES - se debe reemplazar una página
-        // Este es donde interviene el algoritmo de reemplazo (MFU)
-        // Por ahora, simplemente encontramos la página con menos accesos
+        // NO HAY MARCOS DISPONIBLES - se debe reemplazar una página con MFU
         int pageToReplace = -1;
         int minAccesses = INT_MAX;
-        
+
+        // ── TRAZA MFU: Candidatos a reemplazo ──────────────────────────────
+        std::cout << "\n  ┌─── [MFU] DECISION DE REEMPLAZO ───────────────────────────────────┐" << std::endl;
+        std::cout << "  │ Pagina nueva solicitada : " << std::setw(6) << pageNumber << " (no esta en RAM)" << std::endl;
+        std::cout << "  │ RAM llena. Evaluando candidatos para expulsar:" << std::endl;
+        std::cout << "  │" << std::endl;
+        std::cout << "  │   Pagina │ Marco │ Frecuencia │ Victima?" << std::endl;
+        std::cout << "  │  ────────┼───────┼────────────┼─────────" << std::endl;
+
         for (int i = 0; i < pageTable.getTotalPages(); i++) {
             if (pageTable.getPageEntry(i).presentBit) {
-                if (pageTable.getPageEntry(i).accessCount < minAccesses) {
-                    minAccesses = pageTable.getPageEntry(i).accessCount;
+                int acc = pageTable.getPageEntry(i).accessCount;
+                int frm = pageTable.getPageEntry(i).frameNumber;
+                std::cout << "  │  " << std::setw(7) << i
+                          << " │ " << std::setw(5) << frm
+                          << " │ " << std::setw(10) << acc
+                          << " │ ";
+                if (acc < minAccesses) {
+                    minAccesses = acc;
                     pageToReplace = i;
                 }
+                // Marca provisional (se imprime después de conocer la víctima real)
+                std::cout << "..." << std::endl;
             }
         }
-        
+
+        // Reimprimir sólo la fila ganadora como víctima
         if (pageToReplace != -1) {
-            // Reemplazar la página
+            std::cout << "  │" << std::endl;
+            std::cout << "  │ ==> VICTIMA ELEGIDA: Pagina " << pageToReplace
+                      << " (frecuencia=" << minAccesses << ", menor de todas)" << std::endl;
+            std::cout << "  │ Criterio MFU: se expulsa la pagina con MENOR frecuencia" << std::endl;
+            std::cout << "  │   porque es la que se uso MENOS y es la mas prescindible." << std::endl;
+
             int frameToUse = pageTable.getPageEntry(pageToReplace).frameNumber;
+
+            std::cout << "  │" << std::endl;
+            std::cout << "  │ [SWAP OUT] Pagina " << pageToReplace
+                      << " -> sale del Marco " << frameToUse << std::endl;
+
             pageTable.getPageEntry(pageToReplace).presentBit = false;
             pageTable.getPageEntry(pageToReplace).frameNumber = -1;
             tlb.invalidate(pageToReplace);
-            
+
             pageTable.assignFrame(pageNumber, frameToUse);
+
+            std::cout << "  │ [SWAP IN ] Pagina " << pageNumber
+                      << " -> entra en Marco " << frameToUse << std::endl;
+            std::cout << "  └───────────────────────────────────────────────────────────────────┘" << std::endl;
         } else {
+            std::cout << "  └─ [ERROR] No se encontro pagina para reemplazar." << std::endl;
             return false;
         }
     }
